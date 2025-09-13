@@ -218,6 +218,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# 当前脚本来自于http://script.345yun.cn脚本库下载！
 import os
 import glob
 import requests
@@ -226,6 +228,7 @@ from datetime import datetime
 # 从环境变量中读取 Telegram 机器人Token和用户ID
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_USER_ID = os.getenv("TG_USER_ID")
+
 if not TG_BOT_TOKEN or not TG_USER_ID:
     raise ValueError("请在环境变量中设置 TG_BOT_TOKEN 和 TG_USER_ID")
 
@@ -247,7 +250,7 @@ def push_to_tg(script_name, log_time, log_content):
     except Exception as e:
         print(f"❌ TG推送异常: {str(e)}")
 
-def read_and_push_latest_log(task_name_prefix, script_name, content_limit=2000):
+def read_latest_ql_log(task_name_prefix, script_name, content_limit=2000):
     log_base_dir = "/ql/data/log"
     if not os.path.exists(log_base_dir):
         err = "❌ 青龙日志根目录不存在：/ql/data/log"
@@ -269,6 +272,7 @@ def read_and_push_latest_log(task_name_prefix, script_name, content_limit=2000):
     
     latest_log_file = max(all_files, key=os.path.getctime)
     print(f"✅ 正在读取文件：{latest_log_file}")
+
     try:
         try:
             with open(latest_log_file, "r", encoding="utf-8", errors="ignore") as f:
@@ -292,6 +296,10 @@ def read_and_push_latest_log(task_name_prefix, script_name, content_limit=2000):
         return err
 
 if __name__ == "__main__":
+    print("="*60)
+    print("  青龙日志工具（深度提供）  ")
+    print("="*60)
     current_script_name = os.path.splitext(os.path.basename(__file__))[0]
-    result = read_and_push_latest_log(task_name_prefix=current_script_name, script_name=current_script_name)
-    print(result)
+    result = read_latest_ql_log(task_name_prefix=current_script_name, script_name=current_script_name)
+    print(f"\n{result}")
+    print("\n" + "="*60)
