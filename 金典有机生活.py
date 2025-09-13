@@ -91,11 +91,3 @@ def read_latest_ql_log(task_name_prefix, script_name, content_limit=2000):
         print(err)
         return err
 
-if __name__ == "__main__":
-    print("="*60)
-    print("  青龙日志工具（绝恋提供）  ")
-    print("="*60)
-    current_script_name = os.path.splitext(os.path.basename(__file__))[0]
-    result = read_latest_ql_log(task_name_prefix=current_script_name, script_name=current_script_name)
-    print(f"\n{result}")
-    print("\n" + "="*60)
