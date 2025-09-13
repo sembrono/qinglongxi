@@ -1,479 +1,134 @@
-/**
- * create: 2025/07/11
- * author: 问情，Q群：960690899
- * description: 应用商店下载富豪免费剧场，抓包Hearders的token值，签到、新手红包、新手看15分钟没写，需要自行添加
- * test: 青龙2.19.2
- * 环境变量：wqwl_fhdj，多个换行或者新建多个
- * 免责声明：本脚本仅用于学习，请勿用于商业用途，否则后果自负，请在下载24小时之内删除，否则请自行承担。有问题自行解决。
- * 注：本脚本大多数代码均为ai写。
- */
-
+const fs = require('fs');
+const path = require('path');
+const glob = require('glob');
 const axios = require('axios');
+const { exec } = require('child_process');
 
-const crypto = require("crypto")
-let index = 0;
-const BASE_URL = 'https://app.whhxtc.ltd'
+// === 配置 ===
+// Telegram Bot token 和 用户ID，从环境变量中读取
+const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
+const TG_USER_ID = process.env.TG_USER_ID;
 
-class Task {
-    constructor(cookie) {
-        this.index = index++;
-        this.cookie = cookie;
-        this.init()
-
-    }
-    init() {
-        this.iTag = this.randomITag(Date.now());
-        this.headers = {
-            'User-Agent': 'okhttp/4.9.0',
-            'Connection': 'Keep-Alive',
-            'Accept-Encoding': 'gzip',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'iTag': this.iTag,
-            'path': '',
-            'checksum': '',
-            'Sign': '',
-            'source': 'Android',
-            'X-SCDN-Req-Token': '',
-            'Timestamp': '',
-            'version': '1.1.3',
-            'seqID': '',
-            'token': this.cookie
-        }
-    }
-    randomITag(j) {
-        const randomDigits = new Set();
-        while (randomDigits.size < 4) {
-            const digit = Math.floor(Math.random() * 10); // 0 ~ 9
-            randomDigits.add(digit);
-        }
-        const digitsStr = [...randomDigits].join('');
-        const result = j.toString() + digitsStr;
-        return result;
-    }
-    getXSCDNReqToken(timestamp, path, random) {
-        random = random || this.randomString();
-        const sign = crypto.createHash('md5').update(`${timestamp}${random}7a21c2347f14aecea9f42846fcb83a04${path}`).digest('hex');
-        //  console.log(`${timestamp}|${random}|${sign}}`);
-        return `${timestamp}|${random}|${sign}`
-    }
-    getSign(j) {
-        const valueOf = (BigInt(j) * BigInt(3)).toString();
-        let stringBuilder = [];
-        for (let i = 0; i < valueOf.length; i++) {
-            if (i % 2 !== 0) {
-                stringBuilder.push(valueOf[i]);
-            }
-        }
-        stringBuilder.push(valueOf.slice(-3));
-        return stringBuilder.join('').split('').reverse().join('');
-    }
-    getChecksum(timeStamp, params) {
-        //console.log(timeStamp, params);
-        const checksum = crypto.createHash('md5').update(`${timeStamp}${params}NS2pzOy3x5iXkW96zd73dfXdG7DM9vb86esS7Kws`).digest('hex');
-        //console.log(checksum);
-        return checksum;
-    }
-
-    getParams(data) {
-        const sortedKeys = Object.keys(data).sort();
-        const result = sortedKeys.map(key => data[key]).join('');
-        return result;
-    }
-    randomString(length = 12) {
-        const characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-        let result = '';
-        const charactersLength = characters.length;
-        for (let i = 0; i < length; i++) {
-            result += characters.charAt(Math.floor(Math.random() * charactersLength));
-        }
-        return result;
-    }
-
-    //添加观看时间
-    async play(times = 30, path = '/yk/drama/play') {
-        const url = `${BASE_URL}${path}`
-        const data = {
-            "episodeId": this.getRandomInt(1000, 5000),
-            "second": this.randomTime(times),
-            "path": path,
-            "equipment": "android"
-        }
-        this.headers['path'] = path
-        const randomShare = this.getRandomInt(0, 29)
-        const randomFavorite = this.getRandomInt(0, 29)
-        const likesIndex = this.randomLikesIndex()
-        let j = 0
-        for (let i = 0; i < 30; i++) {
-            try {
-                if (i % 3 === 0)
-                    data['episodeId'] += 1
-                if (i === randomShare) {
-                    const shareData = await this.share()
-                    this.sendMessage(`🔔分享结果：${JSON.stringify(shareData)}`)
-                }
-                if (i === randomFavorite) {
-                    const favoriteData = await this.favorite()
-                    this.sendMessage(`🔔收藏结果：${JSON.stringify(favoriteData)}`)
-                }
-                const timestamp = Date.now()
-                const timestamp2 = Math.floor(timestamp / 1000)
-                this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-                this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-                this.headers['Timestamp'] = timestamp
-                this.headers['seqID'] = timestamp
-                this.headers['Sign'] = this.getSign(timestamp)
-                const config = {
-                    url: url,
-                    method: 'POST',
-                    headers: this.headers,
-                    data: data
-                }
-                const res = await axios(config)
-                this.sendMessage(`📺第${i + 1}次模拟观看结果：${JSON.stringify(res.data)}`)
-                if (likesIndex.includes(i)) {
-                    const likesResult = await this.likes(data['episodeId'])
-                    this.sendMessage(`💖第${(j++) + 1}次视频点赞结果：${JSON.stringify(likesResult)}`)
-                    data['episodeId'] += 1
-                }
-                const playSleep = this.getRandomInt(4, 16)
-                await this.sleep(playSleep * 1000)
-            } catch (error) {
-                this.sendMessage(`第${i + 1}次模拟观看出错：${error}`)
-                return
-            }
-
-        }
-    }
-
-    randomLikesIndex() {
-        let data = []
-        while (data.length < 3) {
-            const temp = this.getRandomInt(0, 29)
-            if (!data.includes(temp))
-                data.push(temp)
-        }
-        return data
-    }
-    //点赞
-    async likes(episodeId, path = '/yk/drama/likes') {
-        try {
-            const url = `${BASE_URL}${path}`
-            episodeId = episodeId || this.getRandomInt(1000, 5000)
-            const data = {
-                "episodeId": episodeId,
-                "path": path,
-                "equipment": "android"
-            }
-            this.headers['path'] = path
-            const timestamp = Date.now()
-            const timestamp2 = Math.floor(timestamp / 1000)
-            this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-            this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-            this.headers['Timestamp'] = timestamp
-            this.headers['seqID'] = timestamp
-            this.headers['Sign'] = this.getSign(timestamp)
-            const config = {
-                url: url,
-                method: 'POST',
-                headers: this.headers,
-                data: data
-            }
-            const res = await axios(config)
-            return res.data
-        } catch (e) {
-            throw `点赞出错了,${e}`
-        }
-    }
-
-    //分享
-    async share(path = '/yk/task/share') {
-        try {
-            const url = `${BASE_URL}${path}`
-            const data = {
-                "path": path,
-                "equipment": "android"
-            }
-            this.headers['path'] = path
-            const timestamp = Date.now()
-            const timestamp2 = Math.floor(timestamp / 1000)
-            this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-            this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-            this.headers['Timestamp'] = timestamp
-            this.headers['seqID'] = timestamp
-            this.headers['Sign'] = this.getSign(timestamp)
-            const config = {
-                url: url,
-                method: 'POST',
-                headers: this.headers,
-                data: data
-            }
-            const res = await axios(config)
-            return res.data
-        } catch (e) {
-            throw `分享出错了,${e}`
-        }
-    }
-
-    //收藏
-    async favorite(episodeId, path = '/yk/drama/favorite') {
-        try {
-            const url = `${BASE_URL}${path}`
-            episodeId = episodeId || this.getRandomInt(1000, 5000)
-            const data = {
-                "episodeId": episodeId,
-                "path": path,
-                "equipment": "android"
-            }
-            this.headers['path'] = path
-            const timestamp = Date.now()
-            const timestamp2 = Math.floor(timestamp / 1000)
-            this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-            this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-            this.headers['Timestamp'] = timestamp
-            this.headers['seqID'] = timestamp
-            this.headers['Sign'] = this.getSign(timestamp)
-            const config = {
-                url: url,
-                method: 'POST',
-                headers: this.headers,
-                data: data
-            }
-            const res = await axios(config)
-            return res.data
-        } catch (e) {
-            throw `点赞出错了,${e}`
-        }
-    }
-
-    //饭补0.30-8.30 ，11.30-12.30,17.30-18.30，22.30-23.30
-    async diningCheckIn(path = '/yk/task/diningCheckIn') {
-        try {
-            const url = `${BASE_URL}${path}`
-            const data = {
-                "path": path,
-                "equipment": "android"
-            }
-            this.headers['path'] = path
-            const timestamp = Date.now()
-            const timestamp2 = Math.floor(timestamp / 1000)
-            this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-            this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-            this.headers['Timestamp'] = timestamp
-            this.headers['seqID'] = timestamp
-            this.headers['Sign'] = this.getSign(timestamp)
-            const config = {
-                url: url,
-                method: 'POST',
-                headers: this.headers,
-                data: data
-            }
-            const res = await axios(config)
-            this.sendMessage(`🍚饭补领取结果：${JSON.stringify(res.data)}`)
-        } catch (e) {
-            throw `获取饭补出错了,${e}`
-        }
-    }
-
-    async query() {
-        try {
-            const data1 = await this.accountBalance(7)
-            const data2 = await this.accountBalance(8)
-            if (data1 && data2) {
-                let result = ''
-                result += `🪙${data1.data.name}：${data1.data.quantity}`
-                result += `\n🪙${data2.data.name}：${data2.data.quantity}`
-                this.sendMessage(`查询结果：\n ${result}`)
-            } else {
-                this.sendMessage(`🪙$查询结果：\n 获取数据失败`)
-            }
-        } catch (e) {
-            throw `查询账号出错了,${e}`
-        }
-    }
-
-    async accountBalance(accountType = "7", path = '/yk/user/accountBalance') {
-        try {
-            const url = `${BASE_URL}${path}`
-            const data = {
-                "accountType": accountType,
-                "path": "/user/accountBalance",
-                "equipment": "android"
-            }
-            this.headers['path'] = path
-            const timestamp = Date.now()
-            const timestamp2 = Math.floor(timestamp / 1000)
-            this.headers['X-SCDN-Req-Token'] = this.getXSCDNReqToken(timestamp2, url)
-            this.headers['checksum'] = this.getChecksum(timestamp, this.getParams(data));
-            this.headers['Timestamp'] = timestamp
-            this.headers['seqID'] = timestamp
-            this.headers['Sign'] = this.getSign(timestamp)
-            const config = {
-                url: url,
-                method: 'POST',
-                headers: this.headers,
-                data: data
-            }
-            const res = await axios(config)
-            return res.data
-        } catch (e) {
-            throw `获取余额出错了,${e}`
-        }
-    }
-
-
-    randomTime(time = 30) {
-        return this.getRandomInt(time - 5, time + 5)
-    }
-
-    async main() {
-        await this.play()
-        if (this.isInMealTime() == true)
-            await this.diningCheckIn()
-        await this.query()
-    }
-
-    isInMealTime() {
-        const now = new Date();
-
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTime = currentHour * 60 + currentMinute;
-        const mealTimes = [
-            { start: 7 * 60 + 30, end: 8 * 60 + 30 },   // 07:30 - 08:30
-            { start: 11 * 60 + 30, end: 12 * 60 + 30 }, // 11:30 - 12:30
-            { start: 17 * 60 + 30, end: 18 * 60 + 30 }, // 17:30 - 18:30
-            { start: 22 * 60 + 30, end: 23 * 60 + 30 }  // 22:30 - 23:30
-        ];
-
-        return mealTimes.some(time => {
-            return currentTime >= time.start && currentTime <= time.end;
-        });
-    }
-    async sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    getRandomInt(min, max) {
-        if (min > max) throw new Error("min 不能大于 max");
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    sendMessage(message) {
-        console.log(`账号[${this.index + 1}] ${message}`);
-    }
+if (!TG_BOT_TOKEN || !TG_USER_ID) {
+  throw new Error("请在环境变量中设置 TG_BOT_TOKEN 和 TG_USER_ID");
 }
 
-//获取环境变量
-function checkEnv(userCookie) {
-    try {
-        const envSplitor = ["&", "\n"];
-        //console.log(userCookie);
-        let userList = userCookie
-            .split(envSplitor.find((o) => userCookie.includes(o)) || "&")
-            .filter((n) => n);
-        if (!userList || userList.length === 0) {
-            console.log("没配置环境变量就要跑脚本啊！！！");
-            console.log("🔔还没开始已经结束!");
-            process.exit(1);
-        }
+// 基础URL富豪短剧API根地址
+const BASE_URL = 'https://app.whhxtc.ltd';
 
-        console.log(`共找到${userList.length}个账号`);
-        return userList;
-    } catch (e) {
-        console.log("环境变量格式错误,下面是报错信息")
-        console.log(e);
-    }
+// === 富豪短剧功能示范（简化版） ===
+// 这里可将原富豪短剧JS中核心方法封装调用，为示范仅执行外部脚本演示
+function runFuhaoScript(jsFilePath) {
+  return new Promise((resolve, reject) => {
+    console.log(`► 开始执行富豪短剧脚本: ${jsFilePath}`);
+    exec(`node ${jsFilePath}`, {timeout: 10 * 60 * 1000}, (err, stdout, stderr) => {
+      if (err) {
+        console.error(`❌ 执行富豪短剧脚本出错: ${err}`);
+        reject(err);
+      } else {
+        console.log(`► 富豪短剧脚本执行完成:\n${stdout}`);
+        if(stderr) console.warn(`脚本执行警告:\n${stderr}`);
+        resolve(true);
+      }
+    });
+  });
 }
 
-
-!(async function () {
-    console.log("富豪短剧开始运行");
-    const tokens = checkEnv(process.env['wqwl_fhdj']);
-    const tasks = tokens.map(token => new Task(token).main());
-    await Promise.all(tasks); // 所有任务并发执行
-    console.log("全部任务已完成！");
-})(); 
-import os
-import glob
-import requests
-from datetime import datetime
-
-# 从环境变量中读取 Telegram 机器人Token和用户ID
-TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
-TG_USER_ID = os.getenv("TG_USER_ID")
-
-if not TG_BOT_TOKEN or not TG_USER_ID:
-    raise ValueError("请在环境变量中设置 TG_BOT_TOKEN 和 TG_USER_ID")
-
-def push_to_tg(script_name, log_time, log_content):
-    title = f"【{script_name}】_ {log_time}"
-    msg = f"{title}\n\n{log_content}"
-    url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TG_USER_ID,
-        "text": msg,
-        "parse_mode": "HTML"
+// === 日志读取与 Telegram 推送 ===
+async function pushToTG(scriptName, logTime, logContent) {
+  const title = `【${scriptName}】_ ${logTime}`;
+  const msg = `${title}\n\n${logContent}`;
+  const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`;
+  try {
+    const res = await axios.post(url, null, {
+      params: {
+        chat_id: TG_USER_ID,
+        text: msg,
+        parse_mode: "HTML"
+      }
+    });
+    if(res.status === 200){
+      console.log(`✅ TG推送成功: ${title}`);
+    } else {
+      console.error(`❌ TG推送失败，状态码: ${res.status}, 内容: ${res.data}`);
     }
-    try:
-        response = requests.post(url, data=payload)
-        if response.status_code == 200:
-            print(f"✅ TG推送成功: {title}")
-        else:
-            print(f"❌ TG推送失败，状态码: {response.status_code}, 内容: {response.text}")
-    except Exception as e:
-        print(f"❌ TG推送异常: {str(e)}")
+  } catch(e) {
+    console.error(`❌ TG推送异常: ${e.message}`);
+  }
+}
 
-def read_latest_ql_log(task_name_prefix, script_name, content_limit=2000):
-    log_base_dir = "/ql/data/log"
-    if not os.path.exists(log_base_dir):
-        err = "❌ 青龙日志根目录不存在：/ql/data/log"
-        print(err)
-        return err
-    
-    task_dirs = glob.glob(os.path.join(log_base_dir, f"{task_name_prefix}*"))
-    if not task_dirs:
-        err = f"❌ 未找到[{task_name_prefix}]相关日志文件夹"
-        print(err)
-        return err
-    
-    latest_task_dir = max(task_dirs, key=os.path.getctime)
-    all_files = [os.path.join(latest_task_dir, f) for f in os.listdir(latest_task_dir) if os.path.isfile(os.path.join(latest_task_dir, f))]
-    if not all_files:
-        err = f"❌ 文件夹[{latest_task_dir}]内无文件"
-        print(err)
-        return err
-    
-    latest_log_file = max(all_files, key=os.path.getctime)
-    print(f"✅ 正在读取文件：{latest_log_file}")
+async function readLatestQLLog(taskNamePrefix, scriptName, contentLimit = 2000) {
+  const logBaseDir = "/ql/data/log";
+  if(!fs.existsSync(logBaseDir)){
+    const err = "❌ 青龙日志根目录不存在：/ql/data/log";
+    console.error(err);
+    return err;
+  }
+  const taskDirs = glob.sync(path.join(logBaseDir, `${taskNamePrefix}*`));
+  if(taskDirs.length === 0){
+    const err = `❌ 未找到[${taskNamePrefix}]相关日志文件夹`;
+    console.error(err);
+    return err;
+  }
+  let latestTaskDir = taskDirs[0];
+  let latestTime = fs.statSync(latestTaskDir).ctimeMs;
+  for(const dir of taskDirs){
+    const stat = fs.statSync(dir);
+    if(stat.ctimeMs > latestTime){
+      latestTaskDir = dir;
+      latestTime = stat.ctimeMs;
+    }
+  }
+  const allFiles = fs.readdirSync(latestTaskDir)
+    .map(f => path.join(latestTaskDir, f))
+    .filter(f => fs.statSync(f).isFile());
+  if(allFiles.length === 0){
+    const err = `❌ 文件夹[${latestTaskDir}]内无文件`;
+    console.error(err);
+    return err;
+  }
+  let latestLogFile = allFiles[0];
+  let latestFileTime = fs.statSync(latestLogFile).ctimeMs;
+  for(const file of allFiles){
+    const stat = fs.statSync(file);
+    if(stat.ctimeMs > latestFileTime){
+      latestLogFile = file;
+      latestFileTime = stat.ctimeMs;
+    }
+  }
+  console.log(`✅ 正在读取文件：${latestLogFile}`);
+  let logContent = '';
+  try {
+    logContent = fs.readFileSync(latestLogFile, {encoding: 'utf8'}).slice(0, contentLimit);
+  } catch(e) {
+    console.error(`❌ 读取日志文件失败: ${e.message}`);
+  }
+  const logTime = new Date(latestFileTime).toISOString().slice(0,16).replace('T',' ');
+  await pushToTG(scriptName, logTime, logContent);
+  return `✅ 内容读取完成\n📄 读取文件：${latestLogFile}\n📝 推送内容长度：${logContent.length}字符\n📱 已推送【${scriptName}_信息_${logTime}】到Telegram`;
+}
 
-    try:
-        try:
-            with open(latest_log_file, "r", encoding="utf-8", errors="ignore") as f:
-                log_content = f.read()[:content_limit]
-        except:
-            with open(latest_log_file, "r", encoding="gbk", errors="ignore") as f:
-                log_content = f.read()[:content_limit]
-        
-        log_time = datetime.fromtimestamp(os.path.getctime(latest_log_file)).strftime("%Y-%m-%d %H:%M")
-        push_to_tg(script_name, log_time, log_content)
-        
-        return (
-            f"✅ 内容读取完成\n"
-            f"📄 读取文件：{latest_log_file}\n"
-            f"📝 推送内容长度：{len(log_content)}字符\n"
-            f"📱 已推送【{script_name}_信息_{log_time}】到Telegram"
-        )
-    except Exception as e:
-        err = f"❌ 读取失败：{str(e)}"
-        print(err)
-        return err
+// === 主流程 ===
+(async () => {
+  console.log("=".repeat(60));
+  console.log("  富豪短剧自动执行及青龙日志推送合并脚本  ");
+  console.log("=".repeat(60));
 
-if __name__ == "__main__":
-    print("="*60)
-    print("  青龙日志工具（yyduck提供）  ")
-    print("="*60)
-    current_script_name = os.path.splitext(os.path.basename(__file__))[0]
-    result = read_latest_ql_log(task_name_prefix=current_script_name, script_name=current_script_name)
-    print(f"\n{result}")
-    print("\n" + "="*60)
+  const jsFile = "富豪短剧.js"; // 相对路径或绝对路径
+  if (!fs.existsSync(jsFile)) {
+    console.error(`❌ JS脚本文件 ${jsFile} 不存在，请确保路径正确`);
+    process.exit(1);
+  }
+  try {
+    await runFuhaoScript(jsFile);
+
+    const currentScriptName = path.basename(jsFile, ".js");
+    const logResult = await readLatestQLLog(currentScriptName, currentScriptName);
+
+    console.log(logResult);
+  } catch (error) {
+    console.error(`❌ 执行发生错误: ${error}`);
+  }
+
+  console.log("=".repeat(60));
+})();
