@@ -9,12 +9,12 @@ USERS = [
         "token": "9BUKyR/B6/MVA6VnYPrfmPHwV60lvczsN5vrh85FSgq8GdUrr5tf3jEh6GPybROToKzw/UTJEeKRFP9l6lHZQg==",
         "deviceId": "972a309b-277a-3cf8-a097-1540d0852d93",
         "name": "账号1"
-    }#,
-    #{
-        #"token": "CLZ4P2GnLlnNDH4=",
-        #"deviceId": "def6e6202c256273",
-        #"name": "账号2"
-    #}
+    },
+    {
+        "token": "2SRI2QZcO4uAkUQIwouuv6XE+VoObEJDZSmQMYzDvSI=",
+        "deviceId": "c0cdd9221dcc481f",
+        "name": "账号2"
+    }
     # 可以按上面格式添加更多用户...
 ]
 # 基础配置
