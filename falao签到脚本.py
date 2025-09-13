@@ -218,5 +218,125 @@ def main():
 
 if __name__ == "__main__":
     main()
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
+
+// 从环境变量中读取 Telegram 机器人Token和用户ID
+const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
+const TG_USER_ID = process.env.TG_USER_ID;
+
+if (!TG_BOT_TOKEN || !TG_USER_ID) {
+  throw new Error("请在环境变量中设置 TG_BOT_TOKEN 和 TG_USER_ID");
+}
+
+const LOG_BASE_DIR = "/ql/data/log";
+const CONTENT_LIMIT = 2000;
+
+async function pushToTg(scriptName, logTime, logContent) {
+  const title = `【${scriptName}】_ ${logTime}`;
+  const msg = `${title}\n\n${logContent}`;
+  const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`;
+
+  try {
+    const response = await axios.post(url, null, {
+      params: {
+        chat_id: TG_USER_ID,
+        text: msg,
+        parse_mode: "HTML",
+      },
+    });
+
+    if (response.status === 200) {
+      console.log(`✅ TG推送成功: ${title}`);
+    } else {
+      console.log(
+        `❌ TG推送失败，状态码: ${response.status}, 内容: ${response.data}`
+      );
+    }
+  } catch (e) {
+    console.log(`❌ TG推送异常: ${e.message}`);
+  }
+}
+
+function getLatestLogFile(taskNamePrefix) {
+  if (!fs.existsSync(LOG_BASE_DIR)) {
+    throw new Error("❌ 青龙日志根目录不存在：/ql/data/log");
+  }
+
+  const taskDirs = fs
+    .readdirSync(LOG_BASE_DIR)
+    .filter((d) => d.startsWith(taskNamePrefix))
+    .map((d) => path.join(LOG_BASE_DIR, d));
+
+  if (taskDirs.length === 0) {
+    throw new Error(`❌ 未找到[${taskNamePrefix}]相关日志文件夹`);
+  }
+
+  // 获取最新任务目录（按ctime排序）
+  const latestTaskDir = taskDirs.reduce((a, b) => {
+    const aTime = fs.statSync(a).ctimeMs;
+    const bTime = fs.statSync(b).ctimeMs;
+    return aTime > bTime ? a : b;
+  });
+
+  const files = fs
+    .readdirSync(latestTaskDir)
+    .map((f) => path.join(latestTaskDir, f))
+    .filter((f) => fs.statSync(f).isFile());
+
+  if (files.length === 0) {
+    throw new Error(`❌ 文件夹[${latestTaskDir}]内无文件`);
+  }
+
+  // 获取最新日志文件（按ctime排序）
+  const latestLogFile = files.reduce((a, b) => {
+    const aTime = fs.statSync(a).ctimeMs;
+    const bTime = fs.statSync(b).ctimeMs;
+    return aTime > bTime ? a : b;
+  });
+
+  return latestLogFile;
+}
+
+function readFileContent(filePath, limit) {
+  try {
+    return fs.readFileSync(filePath, { encoding: "utf8" }).slice(0, limit);
+  } catch {
+    // 尝试用 GBK 读取 （需额外库，这里简化忽略）
+    throw new Error("读取文件失败(utf8)。GBK编码支持需额外实现");
+  }
+}
+
+async function readAndPushLatestLog(taskNamePrefix, scriptName) {
+  try {
+    const latestLogFile = getLatestLogFile(taskNamePrefix);
+    console.log(`✅ 正在读取文件：${latestLogFile}`);
+
+    const logContent = readFileContent(latestLogFile, CONTENT_LIMIT);
+
+    const stat = fs.statSync(latestLogFile);
+    const logTime = new Date(stat.ctimeMs).toISOString().slice(0, 16).replace("T", " ");
+
+    await pushToTg(scriptName, logTime, logContent);
+
+    return (
+      `✅ 内容读取完成\n` +
+      `📄 读取文件：${latestLogFile}\n` +
+      `📝 推送内容长度：${logContent.length}字符\n` +
+      `📱 已推送【${scriptName}_信息_${logTime}】到Telegram`
+    );
+  } catch (e) {
+    console.log(`❌ 读取失败：${e.message}`);
+    return `❌ 读取失败：${e.message}`;
+  }
+}
+
+// 脚本入口
+(async () => {
+  const scriptName = path.basename(__filename, path.extname(__filename));
+  const result = await readAndPushLatestLog(scriptName, scriptName);
+  console.log(result);
+})();
 
 # 当前脚本来自于http://script.345yun.cn脚本库下载！
