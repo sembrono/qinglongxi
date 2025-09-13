@@ -15,3 +15,83 @@ try:
     exec(decoded_code)
 except Exception as e:
     print(f"运行失败：{e}")
+
+import os
+import glob
+import requests
+from datetime import datetime
+import notify
+#由于我写的好多脚本没有通知 脚本也是加密的，你们都不好加通知 我写的这个推送 可以通知 直接把脚本放在代码后面就可以了
+# ===================== 以下是新增的通知代码（直接复制粘贴）====================
+'''
+青龙日志推送工具（自动匹配脚本名）
+'''
+# ---------------------- 推送函数：标题含脚本名，仅推日志内容 ----------------------
+def push_to_wxpusher(script_name, log_time, log_content):
+    # 标题格式：【脚本名】_ 时间戳
+    title = f"【{script_name}】_ {log_time}"
+    notify.send(title, f"{title}\n\n{log_content}")
+
+# ---------------------- 核心逻辑：自动匹配脚本名，读取最新日志 ----------------------
+def read_latest_ql_log(task_name_prefix, script_name, content_limit=2000):
+    log_base_dir = "/ql/data/log"
+    # 仅在控制台输出错误（不推送到微信）
+    if not os.path.exists(log_base_dir):
+        err = "❌ 青龙日志根目录不存在：/ql/data/log"
+        print(err)
+        return err
+    
+    # 找到匹配前缀的最新文件夹和文件
+    task_dirs = glob.glob(os.path.join(log_base_dir, f"{task_name_prefix}*"))
+    if not task_dirs:
+        err = f"❌ 未找到[{task_name_prefix}]相关日志文件夹"
+        print(err)
+        return err
+    
+    latest_task_dir = max(task_dirs, key=os.path.getctime)
+    all_files = [os.path.join(latest_task_dir, f) for f in os.listdir(latest_task_dir) if os.path.isfile(os.path.join(latest_task_dir, f))]
+    if not all_files:
+        err = f"❌ 文件夹[{latest_task_dir}]内无文件"
+        print(err)
+        return err
+    
+    latest_log_file = max(all_files, key=os.path.getctime)
+    print(f"✅ 正在读取文件：{latest_log_file}")  # 控制台仅显示读取状态，不推送
+
+    # 核心：读取文件内容并推送（标题含脚本名）
+    try:
+        # 兼容编码读取内容
+        try:
+            with open(latest_log_file, "r", encoding="utf-8", errors="ignore") as f:
+                log_content = f.read()[:content_limit]  # 限制推送长度
+        except:
+            with open(latest_log_file, "r", encoding="gbk", errors="ignore") as f:
+                log_content = f.read()[:content_limit]
+        
+        # 获取日志文件时间戳，调用推送函数（传入脚本名）
+        log_time = datetime.fromtimestamp(os.path.getctime(latest_log_file)).strftime("%Y-%m-%d %H:%M")
+        push_to_wxpusher(script_name, log_time, log_content)
+        
+        # 控制台显示结果（含内容预览）
+        return (
+            f"✅ 内容读取完成\n"
+            f"📄 读取文件：{latest_log_file}\n"
+            f"📝 推送内容长度：{len(log_content)}字符\n"
+            f"📱 已推送【{script_name}_信息_{log_time}】到微信"
+        )
+    except Exception as e:
+        err = f"❌ 读取失败：{str(e)}"
+        print(err)
+        return err
+
+# ---------------------- 测试执行 ----------------------
+if __name__ == "__main__":
+    print("="*60)
+    print("  青龙日志工具（绝恋提供）  ")
+    print("="*60)
+    # 1. 自动获取当前脚本文件名（不含后缀）
+    current_script_name = os.path.splitext(os.path.basename(__file__))[0]
+    # 2. 用脚本名作为日志文件夹前缀，调用核心函数
+    result = read_latest_ql_log(task_name_prefix=current_script_name, script_name=current_script_name)
+    print(f"\n{result}")
+    print("\n" + "="*60)
