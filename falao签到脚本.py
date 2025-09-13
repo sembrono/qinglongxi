@@ -1,16 +1,15 @@
-import requests
-import json
-import time
 import os
+import glob
+import requests
+import time
 from datetime import datetime
 
 class BirdSignIn:
     def __init__(self):
         self.session = requests.Session()
-        
         self.base_url = os.getenv('BIRD_BASE_URL', 'https://cloudprint.chongci.shop')
         self.accounts = self._parse_accounts()
-    
+        
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090c2c)XWEB/8518',
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -23,30 +22,28 @@ class BirdSignIn:
             'Accept-Encoding': 'gzip, deflate, br',
             'xweb_xhr': '1'
         }
-        
         self.session.headers.update(self.headers)
 
-        # 从环境变量读取 Telegram 相关配置
+        # Telegram 配置
         self.TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN')
         self.TG_CHAT_ID = os.getenv('TG_USER_ID')
-    
+        if not self.TG_BOT_TOKEN or not self.TG_CHAT_ID:
+            print("❌ Telegram 环境变量 TG_BOT_TOKEN 或 TG_USER_ID 未设置")
+
     def _parse_accounts(self):
         accounts_str = os.getenv('BIRD_ACCOUNTS', '')
         if not accounts_str:
             print("❌ 错误：未设置环境变量 BIRD_ACCOUNTS")
-            print("请设置账号列表，支持换行或@分割")
             return []
-        
         if '\n' in accounts_str:
             accounts = [acc.strip() for acc in accounts_str.split('\n') if acc.strip()]
         elif '@' in accounts_str:
             accounts = [acc.strip() for acc in accounts_str.split('@') if acc.strip()]
         else:
             accounts = [accounts_str.strip()]
-        
         print(f"📋 解析到 {len(accounts)} 个账号")
         return accounts
-        
+
     def get_sign_info(self, openid):
         url = f"{self.base_url}/app/index.php"
         params = {
@@ -72,10 +69,10 @@ class BirdSignIn:
                     'signed': data.get('signed', 0)
                 }
             else:
-                return {'success': False,'error': f"HTTP {response.status_code}: {response.text[:100]}"}
+                return {'success': False, 'error': f"HTTP {response.status_code}: {response.text[:100]}"}
         except Exception as e:
-            return {'success': False,'error': str(e)}
-    
+            return {'success': False, 'error': str(e)}
+
     def sign_in(self, openid):
         url = f"{self.base_url}/app/index.php"
         params = {
@@ -93,22 +90,23 @@ class BirdSignIn:
                 data = response.json()
                 if data.get('status') == 1:
                     result = data.get('result', {})
-                    return {'success': True,'message': f"签到成功！获得积分: {result.get('addcredit', '0')}",'data': data}
+                    return {'success': True, 'message': f"签到成功！获得积分: {result.get('addcredit', '0')}"}
                 else:
-                    return {'success': False,'message': '签到失败','data': data}
+                    return {'success': False, 'message': '签到失败', 'data': data}
             else:
-                return {'success': False,'message': f"HTTP {response.status_code}",'error': response.text[:100]}
+                return {'success': False, 'message': f"HTTP {response.status_code}"}
         except Exception as e:
-            return {'success': False,'message': '请求异常','error': str(e)}
-    
+            return {'success': False, 'message': '请求异常', 'error': str(e)}
+
     def send_telegram_message(self, text):
         if not self.TG_BOT_TOKEN or not self.TG_CHAT_ID:
-            print("❌ Telegram环境变量TG_BOT_TOKEN或TG_USER_ID未设置，跳过推送")
+            print("❌ Telegram 环境变量未配置，跳过推送消息")
             return
         url = f"https://api.telegram.org/bot{self.TG_BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": self.TG_CHAT_ID,
-            "text": text
+            "text": text,
+            "parse_mode": "HTML"
         }
         try:
             response = requests.post(url, json=payload)
@@ -118,74 +116,92 @@ class BirdSignIn:
                 print(f"❌ Telegram消息发送失败: {response.text}")
         except Exception as e:
             print(f"❌ 发送Telegram消息异常: {e}")
-    
+
     def process_account(self, openid, index, total):
         log_lines = []
         log_lines.append(f"{'='*60}")
         log_lines.append(f"📱 处理账号 {index}/{total}: {openid[:10]}...")
-        
         sign_info = self.get_sign_info(openid)
         if not sign_info['success']:
             err_msg = f"❌ 获取签到信息失败: {sign_info['error']}"
             log_lines.append(err_msg)
             self.send_telegram_message(err_msg)
             return False
-        
-        log_lines.append(f"👤 用户昵称: {sign_info['nickname']}")
-        log_lines.append(f"💰 当前积分: {sign_info['myjindou']}")
+        log_lines.append(f"👤 昵称: {sign_info['nickname']}")
+        log_lines.append(f"💰 积分: {sign_info['myjindou']}")
         log_lines.append(f"📅 连续签到: {sign_info['lianxu']} 天")
         log_lines.append(f"📊 总签到: {sign_info['total']} 天")
         log_lines.append(f"✅ 今日已签到: {'是' if sign_info['signed'] else '否'}")
-        
         if sign_info['signed']:
             info_msg = "ℹ️ 今日已签到，跳过"
             log_lines.append(info_msg)
             self.send_telegram_message(f"账号 {index}/{total} {openid[:10]}... {info_msg}")
             return True
-        
         log_lines.append("🎯 执行签到...")
         sign_result = self.sign_in(openid)
-        
         if sign_result['success']:
             success_msg = f"✅ 签到成功! {sign_result['message']}"
             log_lines.append(success_msg)
             self.send_telegram_message(f"账号 {index}/{total} {openid[:10]}... {success_msg}")
             return True
         else:
-            fail_msg = f"❌ 签到失败: {sign_result['message']}"
+            fail_msg = f"❌ 签到失败: {sign_result.get('message', '')}"
             log_lines.append(fail_msg)
             if 'error' in sign_result:
                 log_lines.append(f"   错误详情: {sign_result['error']}")
             self.send_telegram_message(f"账号 {index}/{total} {openid[:10]}... {fail_msg}")
             return False
-    
+
+    def read_and_push_latest_log(self, content_limit=2000):
+        log_base_dir = "/ql/data/log"
+        current_script_name = os.path.splitext(os.path.basename(__file__))[0]
+        task_dirs = glob.glob(os.path.join(log_base_dir, f"{current_script_name}*"))
+        if not task_dirs:
+            err = f"❌ 未找到[{current_script_name}]相关日志文件夹"
+            print(err)
+            self.send_telegram_message(err)
+            return
+        latest_task_dir = max(task_dirs, key=os.path.getctime)
+        all_files = [os.path.join(latest_task_dir, f) for f in os.listdir(latest_task_dir) if os.path.isfile(os.path.join(latest_task_dir, f))]
+        if not all_files:
+            err = f"❌ 文件夹[{latest_task_dir}]内无文件"
+            print(err)
+            self.send_telegram_message(err)
+            return
+        latest_log_file = max(all_files, key=os.path.getctime)
+        print(f"✅ 正在读取文件：{latest_log_file}")
+        try:
+            try:
+                with open(latest_log_file, "r", encoding="utf-8", errors="ignore") as f:
+                    log_content = f.read()[:content_limit]
+            except:
+                with open(latest_log_file, "r", encoding="gbk", errors="ignore") as f:
+                    log_content = f.read()[:content_limit]
+            log_time = datetime.fromtimestamp(os.path.getctime(latest_log_file)).strftime("%Y-%m-%d %H:%M")
+            self.send_telegram_message(f"【{current_script_name}】_ {log_time}\n\n{log_content}")
+        except Exception as e:
+            err = f"❌ 读取失败：{str(e)}"
+            print(err)
+            self.send_telegram_message(err)
+
     def run(self):
         print("🐦 小鸟签到脚本启动")
         print("=" * 60)
-        
         if not self.accounts:
-            print("❌ 没有配置账号，程序退出")
+            print("❌ 未找到任何账号，退出")
             return
-        
-        print(f"🎯 开始处理 {len(self.accounts)} 个账号")
-        
         success_count = 0
         total_count = len(self.accounts)
-        
         for i, openid in enumerate(self.accounts, 1):
             try:
                 if self.process_account(openid, i, total_count):
                     success_count += 1
-            
                 if i < total_count:
-                    print("⏳ 等待 2 秒...")
                     time.sleep(2)
-                    
             except Exception as e:
-                error_msg = f"❌ 处理账号 {openid[:10]}... 时出错: {e}"
+                error_msg = f"❌ 处理账号 {openid[:10]} 时出错: {e}"
                 print(error_msg)
                 self.send_telegram_message(error_msg)
-        
         summary = (f"\n{'='*60}\n"
                    f"📊 签到结果汇总:\n"
                    f"✅ 成功: {success_count}/{total_count}\n"
@@ -193,13 +209,15 @@ class BirdSignIn:
                    f"📈 成功率: {success_count/total_count*100:.1f}%\n")
         print(summary)
         self.send_telegram_message(summary)
-        
         if success_count == total_count:
             self.send_telegram_message("🎉 所有账号签到完成!")
         elif success_count > 0:
             self.send_telegram_message("⚠️ 部分账号签到成功")
         else:
             self.send_telegram_message("💥 所有账号签到失败")
+        
+        # 签到结束后推送日志内容
+        self.read_and_push_latest_log()
 
 def main():
     signer = BirdSignIn()
