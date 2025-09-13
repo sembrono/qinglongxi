@@ -24,13 +24,11 @@ class BirdSignIn:
         }
         self.session.headers.update(self.headers)
 
-        # Telegram 配置
         self.TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN')
         self.TG_CHAT_ID = os.getenv('TG_USER_ID')
         if not self.TG_BOT_TOKEN or not self.TG_CHAT_ID:
             print("❌ Telegram 环境变量 TG_BOT_TOKEN 或 TG_USER_ID 未设置")
 
-        # 用于保存所有账号签到日志
         self.all_logs = []
 
     def _parse_accounts(self):
@@ -140,9 +138,12 @@ class BirdSignIn:
             print("Telegram 环境变量未配置，跳过推送消息")
             return
         url = f"https://api.telegram.org/bot{self.TG_BOT_TOKEN}/sendMessage"
+        # 只发送一条消息，内容超长则截断
+        max_len = 4096
+        text_to_send = text[:max_len]
         payload = {
             "chat_id": self.TG_CHAT_ID,
-            "text": text,
+            "text": text_to_send,
             "parse_mode": "HTML"
         }
         try:
@@ -187,7 +188,7 @@ class BirdSignIn:
             self.all_logs.append(err)
 
     def run(self):
-        print("小鸟签到脚本启动")
+        print("冲刺鸭云印签到脚本启动")
         if not self.accounts:
             print("未找到任何账号，退出")
             return
@@ -216,19 +217,11 @@ class BirdSignIn:
         else:
             self.all_logs.append("所有账号签到失败")
 
-        # 读取日志内容并添加到推送内容
         self.read_and_push_latest_log()
 
-        # 合并所有日志内容一次性推送到Telegram
+        # 只发送一条消息，内容可能被截断
         final_message = "\n\n".join(self.all_logs)
-        # Telegram 单条消息长度有限制，这里截断成最大4000字符发送
-        max_len = 4000
-        if len(final_message) <= max_len:
-            self.send_telegram_message(final_message)
-        else:
-            # 如果超长，做切分推送
-            for i in range(0, len(final_message), max_len):
-                self.send_telegram_message(final_message[i:i+max_len])
+        self.send_telegram_message(final_message)
 
 def main():
     signer = BirdSignIn()
