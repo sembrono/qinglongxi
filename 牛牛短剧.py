@@ -1,11 +1,7 @@
 import requests
 import random
 import time
-import json
 import threading
-from queue import Queue
-
-
 #牛牛短剧APP 抓包抓token和deviceId值填到下方运行即可。
 # 多用户配置列表
 USERS = [
@@ -21,7 +17,6 @@ USERS = [
     #}
     # 可以按上面格式添加更多用户...
 ]
-
 # 基础配置
 BASE_URL = 'https://new.tianjinzhitongdaohe.com/api/v1/app'
 COMMON_DATA = {"pageSize": "15"}
@@ -33,7 +28,8 @@ class UserSession:
         self.token = user_config["token"]
         self.deviceId = user_config["deviceId"]
         self.headers = self._create_headers()
-        self.last_treasure_time = 0
+        # 移除宝箱时间变量
+        # self.last_treasure_time = 0
         
     def _create_headers(self):
         """创建用户特定的请求头"""
@@ -122,10 +118,11 @@ class UserSession:
         url = f'{BASE_URL}/welfare/repairSignEat?configId={config_id}'
         return self.make_request(url, data=COMMON_DATA)
     
-    def open_treasure(self):
-        """开宝箱"""
-        url = f'{BASE_URL}/welfare/treasureOpen'
-        return self.make_request(url, data=COMMON_DATA)
+    # 移除宝箱接口方法:
+    # def open_treasure(self):
+    #     """开宝箱"""
+    #     url = f'{BASE_URL}/welfare/treasureOpen'
+    #     return self.make_request(url, data=COMMON_DATA)
     
     def new_user_seven(self):
         """新用户奖励"""
@@ -274,16 +271,16 @@ class UserSession:
         else:
             print(f"[{self.name}] 吃饭补贴失败: {eat_result.get('msg') if eat_result else '请求失败'}")
         
-        # 7. 开宝箱
-        print(f"[{self.name}] >>> 开启宝箱")
-        treasure_result = self.open_treasure()
-        if treasure_result and treasure_result.get('code') == 200:
-            print(f"[{self.name}] 宝箱开启成功: {treasure_result.get('msg')}")
-        else:
-            print(f"[{self.name}] 宝箱开启失败: {treasure_result.get('msg') if treasure_result else '请求失败'}")
-        self.last_treasure_time = time.time()
-        
-        # 8. 新用户奖励
+        # 移除宝箱相关代码
+        # print(f"[{self.name}] >>> 开启宝箱")
+        # treasure_result = self.open_treasure()
+        # if treasure_result and treasure_result.get('code') == 200:
+        #     print(f"[{self.name}] 宝箱开启成功: {treasure_result.get('msg')}")
+        # else:
+        #     print(f"[{self.name}] 宝箱开启失败: {treasure_result.get('msg') if treasure_result else '请求失败'}")
+        # self.last_treasure_time = time.time()
+
+        # 7. 新用户奖励
         print(f"[{self.name}] >>> 新用户奖励")
         new_user_result = self.new_user_seven()
         if new_user_result and new_user_result.get('code') == 200:
@@ -291,19 +288,19 @@ class UserSession:
         else:
             print(f"[{self.name}] 新用户奖励失败: {new_user_result.get('msg') if new_user_result else '请求失败'}")
         
-        # 9. 点赞
+        # 8. 点赞
         print(f"[{self.name}] >>> 点赞剧集 (2次)")
         praise_results = self.praise_movie(times=2)
         success_count = sum(1 for r in praise_results if r and r.get('code') == 200)
         print(f"[{self.name}] 点赞完成: 成功 {success_count}/2 次")
         
-        # 10. 收藏
+        # 9. 收藏
         print(f"[{self.name}] >>> 收藏剧集 (2次)")
         collect_results = self.collect_movie(times=2)
         success_count = sum(1 for r in collect_results if r and r.get('code') == 200)
         print(f"[{self.name}] 收藏完成: 成功 {success_count}/2 次")
         
-        # 11. 分享
+        # 10. 分享
         print(f"[{self.name}] >>> 分享剧集 (2次)")
         share_results = self.share_movie(times=2)
         success_count = sum(1 for r in share_results if r and r.get('code') == 200)
@@ -320,20 +317,18 @@ def user_worker(user_config):
     # 执行主签到任务
     user.auto_sign()
     
-    # 持续执行宝箱任务
-    while True:
-        current_time = time.time()
-        if current_time - user.last_treasure_time >= 185:  # 3分钟
-            print(f"[{user.name}] {time.strftime('%Y-%m-%d %H:%M:%S')} 执行宝箱任务")
-            treasure_result = user.open_treasure()
-            if treasure_result and treasure_result.get('code') == 200:
-                print(f"[{user.name}] 宝箱开启成功: {treasure_result.get('msg')}")
-            else:
-                print(f"[{user.name}] 宝箱开启失败: {treasure_result.get('msg') if treasure_result else '请求失败'}")
-            user.last_treasure_time = current_time
-        
-        # 等待一段时间再检查
-        time.sleep(30)
+    # 移除宝箱持续任务循环
+    # while True:
+    #     current_time = time.time()
+    #     if current_time - user.last_treasure_time >= 185:  # 3分钟
+    #         print(f"[{user.name}] {time.strftime('%Y-%m-%d %H:%M:%S')} 执行宝箱任务")
+    #         treasure_result = user.open_treasure()
+    #         if treasure_result and treasure_result.get('code') == 200:
+    #             print(f"[{user.name}] 宝箱开启成功: {treasure_result.get('msg')}")
+    #         else:
+    #             print(f"[{user.name}] 宝箱开启失败: {treasure_result.get('msg') if treasure_result else '请求失败'}")
+    #         user.last_treasure_time = current_time
+    #     time.sleep(30)
 
 def main():
     """主函数，启动多线程处理所有用户"""
