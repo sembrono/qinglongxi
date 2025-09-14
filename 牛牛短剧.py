@@ -6,14 +6,14 @@ import threading
 # 多用户配置列表
 USERS = [
     {
-        "token": "9BUKyR/B6/MVA6VnYPrfmPHwV60lvczsN5vrh85FSgq8GdUrr5tf3jEh6GPybROToKzw/UTJEeKRFP9l6lHZQg==",
-        "deviceId": "972a309b-277a-3cf8-a097-1540d0852d93",
-        "name": "账号1"
+        "token": "GoRJShbSUZ5pg69dQ2cq1k8epPgi4Lcx9M0ZSxevdX23TcmSX8WxC+F/LpZNasL5oKzw/UTJEeKRFP9l6lHZQg==",
+        "deviceId": "4ef1edd0-1510-3f30-b329-3207c2950735",
+        "name": "131"
     },
     {
         "token": "2SRI2QZcO4uAkUQIwouuv6XE+VoObEJDZSmQMYzDvSI=",
         "deviceId": "c0cdd9221dcc481f",
-        "name": "账号2"
+        "name": "181"
     }
     # 可以按上面格式添加更多用户...
 ]
