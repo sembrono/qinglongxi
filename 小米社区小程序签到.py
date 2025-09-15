@@ -4,6 +4,7 @@ import json
 
 
 #cookie在https://account.xiaomi.com/pass/sns/wxapp/v2/tokenLogin链接下
+# 验证码登录获取token网站：sm.linzixuan.work
 #变量名xmsq，多账号使用&分割
 def get_cookies_from_env():
     """
