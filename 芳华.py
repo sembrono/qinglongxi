@@ -3,7 +3,7 @@ import requests
 #小程序:#小程序://知享芳华/xTsLk6d1InqGfeC
 #抓authorization值
 # -------------------------- 多账号配置（用#分割authorization） --------------------------
-# 在此处添加或修改账号，格式：账号1authorization#账号2authorization#账号3authorization...
+# 在此处添加或修改账号，格式：账号1eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySW5mbyI6IntcImlkXCI6MTE5MzAzfSIsImF1dGhvcml0aWVzIjpbXSwiY3JlYXRlZCI6MTc2MTgxNDMyMTM5MiwiZXhwIjoxNzY5NTkwMzIxfQ.V8ACFHJJLfj_UTy01xKtmukiwNJK3tyxf_mB0IJYV20L7BgK75L2P6JD1Dv46EYz5SrbtyZufawrWhw0Nbrptw#
 auth_str = "eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySW5mbyI6IntcImlkXCI6MTE5MzAzfSIsImF1dGhvcml0aWVzIjpbXSwiY3JlYXRlZCI6MTc2MTgxNDMyMTM5MiwiZXhwIjoxNzY5NTkwMzIxfQ.V8ACFHJJLfj_UTy01xKtmukiwNJK3tyxf_mB0IJYV20L7BgK75L2P6JD1Dv46EYz5SrbtyZufawrWhw0Nbrptw"      #这里就是填账号的 
 # 分割字符串得到所有账号的authorization列表
 auth_list = auth_str.split("#")
